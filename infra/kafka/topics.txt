@@ -1,0 +1,7 @@
+# <topic> <partitions>   (replication factor 1: single-node dev broker)
+identity.user.v1 3
+catalog.book.v1 3
+catalog.author.v1 3
+review.v1 3
+loan.commands.v1 3
+loan.events.v1 3
