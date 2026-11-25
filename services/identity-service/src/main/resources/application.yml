@@ -22,6 +22,19 @@ spring:
 server:
   port: 8001
 
+readscape:
+  jwt:
+    # PEM files (PKCS#8 private, X.509 public), e.g. file:.local/keys/private.pem (make dev-keys) or file:/run/secrets/jwt.pem.
+    # Leave empty to generate an ephemeral key pair at startup (tokens die with the process; WARN is logged).
+    private-key-location: ${JWT_PRIVATE_KEY_LOCATION:}
+    public-key-location: ${JWT_PUBLIC_KEY_LOCATION:}
+    ttl: ${JWT_TTL:15m}
+  security:
+    public-paths:
+      - POST /api/v1/auth/register
+      - POST /api/v1/auth/login
+      - GET /.well-known/jwks.json
+
 management:
   endpoints:
     web:

@@ -1,10 +1,70 @@
 spring:
   application:
     name: gateway
-  threads:
-    virtual:
-      enabled: true
-  # Routes arrive in M1: spring.cloud.gateway.server.webflux.routes
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${IDENTITY_JWKS_URI:http://localhost:8001/.well-known/jwks.json}
+  cloud:
+    gateway:
+      server:
+        webflux:
+          httpclient:
+            connect-timeout: 2000
+            response-timeout: 10s
+          routes:
+            - id: identity
+              uri: ${IDENTITY_URL:http://localhost:8001}
+              predicates:
+                - Path=/api/v1/auth/**,/api/v1/users/**,/.well-known/jwks.json
+            - id: catalog
+              uri: ${CATALOG_URL:http://localhost:8002}
+              predicates:
+                - Path=/api/v1/authors/**,/api/v1/books/**
+            - id: review
+              uri: ${REVIEW_URL:http://localhost:8003}
+              predicates:
+                - Path=/api/v1/reviews/**
+            # Swagger aggregation: the UI loads /v3/api-docs/<name>, each served by its service.
+            # PreserveHostHeader makes the services render the gateway as the OpenAPI "server".
+            - id: identity-docs
+              uri: ${IDENTITY_URL:http://localhost:8001}
+              predicates:
+                - Path=/v3/api-docs/identity
+              filters:
+                - PreserveHostHeader
+                - RewritePath=/v3/api-docs/identity, /v3/api-docs
+            - id: catalog-docs
+              uri: ${CATALOG_URL:http://localhost:8002}
+              predicates:
+                - Path=/v3/api-docs/catalog
+              filters:
+                - PreserveHostHeader
+                - RewritePath=/v3/api-docs/catalog, /v3/api-docs
+            - id: review-docs
+              uri: ${REVIEW_URL:http://localhost:8003}
+              predicates:
+                - Path=/v3/api-docs/review
+              filters:
+                - PreserveHostHeader
+                - RewritePath=/v3/api-docs/review, /v3/api-docs
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    urls:
+      - name: identity
+        url: /v3/api-docs/identity
+      - name: catalog
+        url: /v3/api-docs/catalog
+      - name: review
+        url: /v3/api-docs/review
+
+readscape:
+  security:
+    issuer: readscape-identity
 
 server:
   port: 8080

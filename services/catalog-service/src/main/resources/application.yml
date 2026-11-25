@@ -19,8 +19,30 @@ spring:
     properties:
       schema.registry.url: ${SCHEMA_REGISTRY_URL:http://localhost:8085}
 
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${IDENTITY_JWKS_URI:http://localhost:8001/.well-known/jwks.json}
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+
 server:
   port: 8002
+
+readscape:
+  security:
+    public-paths:
+      - GET /api/v1/authors/**
+      - GET /api/v1/books/**
+  storage:
+    endpoint: ${S3_ENDPOINT:http://localhost:9000}
+    region: ${S3_REGION:us-east-1}
+    bucket: ${S3_BUCKET:readscape-covers}
+    access-key: ${S3_ACCESS_KEY:minioadmin}
+    secret-key: ${S3_SECRET_KEY:minioadmin}
 
 management:
   endpoints:

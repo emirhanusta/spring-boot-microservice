@@ -7,3 +7,8 @@ dependencies {
     api("org.testcontainers:testcontainers-kafka")
     compileOnly("org.springframework.boot:spring-boot-starter-test")
 }
+
+dependencies {
+    // TestJwts / TestJwtDecoderConfig
+    api("org.springframework.security:spring-security-oauth2-jose")
+}

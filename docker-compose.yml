@@ -1,8 +1,29 @@
 # Readscape local runtime. See docs/v2-plan.md section 4.7.
 #   make infra-up   -> docker compose --profile infra up -d
 #   make obs-up     -> docker compose --profile obs up -d
+#   make up         -> infra + apps (after make apps-build)
 # Secrets/config come from .env (copy .env.example).
 name: readscape
+
+# Shared bits of the apps profile.
+x-app: &app
+  profiles: [apps]
+  mem_limit: 384m
+  restart: "no"
+x-app-env: &app-env
+  JAVA_OPTS: ${APPS_JAVA_OPTS:--XX:MaxRAMPercentage=75}
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  KAFKA_BOOTSTRAP: kafka:19092
+  SCHEMA_REGISTRY_URL: http://schema-registry:8081
+  IDENTITY_JWKS_URI: http://identity-service:8001/.well-known/jwks.json
+  CATALOG_URL: http://catalog-service:8002
+x-app-health: &app-health
+  interval: 10s
+  timeout: 5s
+  retries: 30
+  start_period: 30s
+
 
 services:
   # ---------------------------------------------------------------- infra
@@ -197,9 +218,105 @@ services:
       - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana-data:/var/lib/grafana
 
-  # ---------------------------------------------------------------- apps (added in M1)
-  # Application services (gateway, identity, catalog, review, notification, ...) are added here
-  # with `profiles: [apps]` once they ship as bootBuildImage images in M1.
+  # ---------------------------------------------------------------- apps
+  # `make apps-build` runs bootJar and copies each jar + the shared Dockerfile to services/<name>/build/docker/, the
+  # build context of its image (one shared Dockerfile). `make up` starts infra + apps.
+  # Healthchecks use bash /dev/tcp: the base image has neither curl nor wget.
+  identity-service:
+    <<: *app
+    build:
+      context: services/identity-service/build/docker
+      dockerfile: Dockerfile  # copied from infra/docker/service.Dockerfile by make apps-build
+      args: { JAR: app.jar }
+    image: readscape/identity-service:local
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *app-env
+      SPRING_PROFILES_ACTIVE: dev          # stable dev-only signing key from .local/keys (make dev-keys)
+      READSCAPE_KEYS_DIR: /run/keys
+      DB_PASSWORD: ${IDENTITY_DB_PASSWORD}
+    volumes:
+      - ${KEYS_DIR:-./.local/keys}:/run/keys:ro
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/8001; printf \"GET /actuator/health/readiness HTTP/1.0\\r\\n\\r\\n\" >&3; head -1 <&3 | grep -q 200'"]
+      <<: *app-health
+
+  catalog-service:
+    <<: *app
+    build:
+      context: services/catalog-service/build/docker
+      dockerfile: Dockerfile  # copied from infra/docker/service.Dockerfile by make apps-build
+      args: { JAR: app.jar }
+    image: readscape/catalog-service:local
+    ports:
+      - "8002:8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      identity-service:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      <<: *app-env
+      DB_PASSWORD: ${CATALOG_DB_PASSWORD}
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/8002; printf \"GET /actuator/health/readiness HTTP/1.0\\r\\n\\r\\n\" >&3; head -1 <&3 | grep -q 200'"]
+      <<: *app-health
+
+  review-service:
+    <<: *app
+    build:
+      context: services/review-service/build/docker
+      dockerfile: Dockerfile  # copied from infra/docker/service.Dockerfile by make apps-build
+      args: { JAR: app.jar }
+    image: readscape/review-service:local
+    ports:
+      - "8003:8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      identity-service:
+        condition: service_healthy
+    environment:
+      <<: *app-env
+      DB_PASSWORD: ${REVIEW_DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/8003; printf \"GET /actuator/health/readiness HTTP/1.0\\r\\n\\r\\n\" >&3; head -1 <&3 | grep -q 200'"]
+      <<: *app-health
+
+  gateway:
+    <<: *app
+    build:
+      context: services/gateway/build/docker
+      dockerfile: Dockerfile  # copied from infra/docker/service.Dockerfile by make apps-build
+      args: { JAR: app.jar }
+    image: readscape/gateway:local
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    depends_on:
+      identity-service:
+        condition: service_healthy
+      catalog-service:
+        condition: service_healthy
+      review-service:
+        condition: service_healthy
+    environment:
+      JAVA_OPTS: ${APPS_JAVA_OPTS:--XX:MaxRAMPercentage=75}
+      IDENTITY_URL: http://identity-service:8001
+      CATALOG_URL: http://catalog-service:8002
+      REVIEW_URL: http://review-service:8003
+      IDENTITY_JWKS_URI: http://identity-service:8001/.well-known/jwks.json
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/8080; printf \"GET /actuator/health/readiness HTTP/1.0\\r\\n\\r\\n\" >&3; head -1 <&3 | grep -q 200'"]
+      <<: *app-health
 
 volumes:
   postgres-data:

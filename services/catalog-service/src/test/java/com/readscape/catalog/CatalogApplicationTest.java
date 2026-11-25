@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.web.client.RestClient;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Import(PostgresContainerConfig.class)
+@Import({PostgresContainerConfig.class, MinioContainerConfig.class})
 class CatalogApplicationTest {
 
     @LocalServerPort

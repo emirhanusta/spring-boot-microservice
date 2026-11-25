@@ -1,0 +1,6 @@
+# Dev profile: stable DEV-ONLY signing key so tokens survive restarts. Generate it with `make dev-keys`
+# (written to .local/keys/, which is git-ignored). Never commit keys; never use these in production.
+readscape:
+  jwt:
+    private-key-location: file:${READSCAPE_KEYS_DIR:.local/keys}/private.pem
+    public-key-location: file:${READSCAPE_KEYS_DIR:.local/keys}/public.pem
