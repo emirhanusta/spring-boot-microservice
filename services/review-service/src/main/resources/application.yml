@@ -19,8 +19,21 @@ spring:
     properties:
       schema.registry.url: ${SCHEMA_REGISTRY_URL:http://localhost:8085}
 
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${IDENTITY_JWKS_URI:http://localhost:8001/.well-known/jwks.json}
+
 server:
   port: 8003
+
+readscape:
+  security:
+    public-paths:
+      - GET /api/v1/reviews/**
+  catalog:
+    url: ${CATALOG_URL:http://localhost:8002}
 
 management:
   endpoints:

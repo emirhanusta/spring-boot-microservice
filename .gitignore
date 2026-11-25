@@ -16,3 +16,6 @@ out/
 
 # Local environment / secrets (see .env.example)
 .env
+
+# Local dev keys (make dev-keys)
+.local/

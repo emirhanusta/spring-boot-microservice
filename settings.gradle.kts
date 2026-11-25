@@ -3,6 +3,7 @@ rootProject.name = "readscape"
 include(
     "libs:platform",
     "libs:common-web",
+    "libs:security",
     "libs:test-fixtures",
     "services:gateway",
     "services:identity-service",
